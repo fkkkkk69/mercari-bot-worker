@@ -167,6 +167,7 @@ async function handleCommand(env, chatId, text, fromUsername) {
         "/price 1000 20000 — диапазон цены в йенах (мин макс)\n" +
         "/status — текущие настройки\n" +
         "/allbrands — список всех доступных брендов\n" +
+        "/reset — сбросить фильтры (все бренды, любая цена)\n" +
         "/stop — отписаться\n" +
         "/start — включить подписку снова\n\n" +
         "Предложения/техподдержка: @YKS41",
@@ -219,6 +220,20 @@ async function handleCommand(env, chatId, text, fromUsername) {
         `Бренды: ${sub.brands.join(", ")}\n` +
         `Цена: ¥${sub.price_min} — ¥${sub.price_max}`,
     });
+    return;
+  }
+
+  if (cmd === "/reset") {
+    let sub = await getSub(env, chatId);
+    if (!sub) {
+      await tgApi(env, "sendMessage", { chat_id: chatId, text: "Ты ещё не подписан. Напиши /start" });
+      return;
+    }
+    sub.brands = ALL_BRANDS;
+    sub.price_min = 0;
+    sub.price_max = 9999999;
+    await setSub(env, chatId, sub);
+    await tgApi(env, "sendMessage", { chat_id: chatId, text: "Сброшено: все бренды, любая цена." });
     return;
   }
 

@@ -141,6 +141,14 @@ async function handleCommand(env, chatId, text) {
   if (cmd === "/start") {
     let sub = await getSub(env, chatId);
     if (!sub) {
+      const code = rest[0];
+      if (code !== env.INVITE_CODE) {
+        await tgApi(env, "sendMessage", {
+          chat_id: chatId,
+          text: "Доступ по инвайт-коду. Напиши: /start <код>",
+        });
+        return;
+      }
       sub = { brands: ALL_BRANDS, price_min: 0, price_max: 9999999, active: true };
       await setSub(env, chatId, sub);
     }

@@ -110,6 +110,8 @@ const ALL_BRANDS = [
   "juicy couture",
   "von dutch",
   "ed hardy",
+  "kmiri",
+  "lgb",
 ];
 
 function tgApi(env, method, params) {

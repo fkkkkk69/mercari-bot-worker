@@ -134,23 +134,29 @@ async function setSub(env, chatId, data) {
   await env.SUBSCRIBERS.put(`sub:${chatId}`, JSON.stringify(data));
 }
 
-async function handleCommand(env, chatId, text) {
+async function handleCommand(env, chatId, text, fromUsername) {
   const [cmd, ...rest] = text.trim().split(/\s+/);
   const arg = rest.join(" ");
 
   if (cmd === "/start") {
     let sub = await getSub(env, chatId);
     if (!sub) {
-      const code = rest[0];
-      if (code !== env.INVITE_CODE) {
-        await tgApi(env, "sendMessage", {
-          chat_id: chatId,
-          text: "Доступ по инвайт-коду. Напиши: /start <код>",
-        });
-        return;
-      }
-      sub = { brands: ALL_BRANDS, price_min: 0, price_max: 9999999, active: true };
+      sub = { brands: ALL_BRANDS, price_min: 0, price_max: 9999999, active: false, pending: true };
       await setSub(env, chatId, sub);
+      const username = fromUsername ? `@${fromUsername}` : "(без username)";
+      await tgApi(env, "sendMessage", {
+        chat_id: env.ADMIN_CHAT_ID,
+        text: `Новый запрос доступа: ${username}, chat_id: ${chatId}\nОдобрить: /approve ${chatId}`,
+      });
+      await tgApi(env, "sendMessage", {
+        chat_id: chatId,
+        text: "Заявка отправлена. Жди подтверждения от администратора.",
+      });
+      return;
+    }
+    if (sub.pending && !sub.active) {
+      await tgApi(env, "sendMessage", { chat_id: chatId, text: "Заявка ещё на рассмотрении." });
+      return;
     }
     await tgApi(env, "sendMessage", {
       chat_id: chatId,
@@ -238,7 +244,25 @@ export default {
       const update = await request.json();
       const msg = update.message;
       if (msg && msg.text) {
-        await handleCommand(env, msg.chat.id, msg.text);
+        if (msg.text.startsWith("/approve")) {
+          if (String(msg.chat.id) !== String(env.ADMIN_CHAT_ID)) {
+            await tgApi(env, "sendMessage", { chat_id: msg.chat.id, text: "Команда только для администратора." });
+            return new Response("ok");
+          }
+          const targetId = msg.text.trim().split(/\s+/)[1];
+          const sub = await getSub(env, targetId);
+          if (!sub) {
+            await tgApi(env, "sendMessage", { chat_id: msg.chat.id, text: "Заявка не найдена." });
+            return new Response("ok");
+          }
+          sub.active = true;
+          sub.pending = false;
+          await setSub(env, targetId, sub);
+          await tgApi(env, "sendMessage", { chat_id: msg.chat.id, text: `Одобрено: ${targetId}` });
+          await tgApi(env, "sendMessage", { chat_id: targetId, text: "Доступ одобрен! Настрой фильтры: /brands ..., /price ..." });
+          return new Response("ok");
+        }
+        await handleCommand(env, msg.chat.id, msg.text, msg.from && msg.from.username);
       }
       return new Response("ok");
     }

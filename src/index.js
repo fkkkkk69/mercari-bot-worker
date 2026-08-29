@@ -251,6 +251,23 @@ async function handleCommand(env, chatId, text, fromUsername) {
 }
 
 export default {
+  async scheduled(event, env, ctx) {
+    // GitHub Actions cron перестал срабатывать сам — дёргаем workflow_dispatch вручную
+    const resp = await fetch(
+      `https://api.github.com/repos/${env.GH_REPO}/actions/workflows/${env.GH_WORKFLOW_ID}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `token ${env.GH_TOKEN}`,
+          "Accept": "application/vnd.github+json",
+          "User-Agent": "mercari-bot-worker",
+        },
+        body: JSON.stringify({ ref: "master" }),
+      }
+    );
+    console.log("dispatch status:", resp.status);
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
 

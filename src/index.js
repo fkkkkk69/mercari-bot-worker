@@ -112,6 +112,9 @@ const ALL_BRANDS = [
   "ed hardy",
   "kmiri",
   "lgb",
+  "20471120",
+  "chanel",
+  "if six was nine",
 ];
 
 function tgApi(env, method, params) {
@@ -151,7 +154,8 @@ async function handleCommand(env, chatId, text) {
         "/status — текущие настройки\n" +
         "/allbrands — список всех доступных брендов\n" +
         "/stop — отписаться\n" +
-        "/start — включить подписку снова",
+        "/start — включить подписку снова\n\n" +
+        "Предложения/техподдержка: @YKS41",
     });
     return;
   }

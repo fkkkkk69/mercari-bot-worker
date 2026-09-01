@@ -164,7 +164,11 @@ async function handleCommand(env, chatId, text, fromUsername) {
       text:
         "Привет! Ты подписан на все бренды по умолчанию.\n\n" +
         "Команды:\n" +
-        "/brands undercover, rick owens, gucci — выбрать бренды через запятую\n" +
+        "/addbrand название мин макс — добавить свою цену под конкретный бренд (не сбрасывает остальные)\n" +
+        "  Пример: /addbrand undercover 5000 12000\n" +
+        "/removebrand название — убрать бренд из индивидуальных фильтров\n" +
+        "/mybrands — список твоих брендов с ценами\n" +
+        "/brands undercover, rick owens, gucci — выбрать бренды через запятую (общий фильтр без цены под каждый)\n" +
         "/price 1000 20000 — диапазон цены в йенах (мин макс)\n" +
         "/status — текущие настройки\n" +
         "/allbrands — список всех доступных брендов\n" +
@@ -178,6 +182,58 @@ async function handleCommand(env, chatId, text, fromUsername) {
 
   if (cmd === "/allbrands") {
     await tgApi(env, "sendMessage", { chat_id: chatId, text: ALL_BRANDS.join(", ") });
+    return;
+  }
+
+  if (cmd === "/addbrand") {
+    const parts = arg.trim().split(/\s+/);
+    if (parts.length < 3) {
+      await tgApi(env, "sendMessage", {
+        chat_id: chatId,
+        text: "Формат: /addbrand название мин макс\nПример: /addbrand undercover 5000 12000\nДля бренда из двух слов: /addbrand number nine 3000 10000",
+      });
+      return;
+    }
+    const min = Number(parts[parts.length - 2]);
+    const max = Number(parts[parts.length - 1]);
+    if (isNaN(min) || isNaN(max)) {
+      await tgApi(env, "sendMessage", { chat_id: chatId, text: "Последние два значения должны быть числами (цена мин макс)." });
+      return;
+    }
+    const brand = parts.slice(0, parts.length - 2).join(" ").toLowerCase();
+    if (!brand) {
+      await tgApi(env, "sendMessage", { chat_id: chatId, text: "Не указан бренд." });
+      return;
+    }
+    let sub = (await getSub(env, chatId)) || { brands: [], price_min: 0, price_max: 9999999, active: true };
+    if (!sub.brand_filters) sub.brand_filters = {};
+    sub.brand_filters[brand] = { min, max };
+    await setSub(env, chatId, sub);
+    await tgApi(env, "sendMessage", { chat_id: chatId, text: `Добавлено: ${brand} — ¥${min} — ¥${max}` });
+    return;
+  }
+
+  if (cmd === "/removebrand") {
+    const brand = arg.trim().toLowerCase();
+    let sub = await getSub(env, chatId);
+    if (!sub || !sub.brand_filters || !sub.brand_filters[brand]) {
+      await tgApi(env, "sendMessage", { chat_id: chatId, text: "Такого бренда нет в твоих фильтрах." });
+      return;
+    }
+    delete sub.brand_filters[brand];
+    await setSub(env, chatId, sub);
+    await tgApi(env, "sendMessage", { chat_id: chatId, text: `Убрано: ${brand}` });
+    return;
+  }
+
+  if (cmd === "/mybrands") {
+    const sub = await getSub(env, chatId);
+    if (!sub || !sub.brand_filters || Object.keys(sub.brand_filters).length === 0) {
+      await tgApi(env, "sendMessage", { chat_id: chatId, text: "У тебя пока нет индивидуальных фильтров по брендам. Добавь: /addbrand название мин макс" });
+      return;
+    }
+    const lines = Object.entries(sub.brand_filters).map(([b, r]) => `${b}: ¥${r.min} — ¥${r.max}`);
+    await tgApi(env, "sendMessage", { chat_id: chatId, text: lines.join("\n") });
     return;
   }
 

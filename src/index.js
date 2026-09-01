@@ -115,6 +115,7 @@ const ALL_BRANDS = [
   "20471120",
   "chanel",
   "if six was nine",
+  "undercoverism",
 ];
 
 function tgApi(env, method, params) {

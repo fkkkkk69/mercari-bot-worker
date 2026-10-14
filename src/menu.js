@@ -119,14 +119,40 @@ export function createMenu(d) {
     if (isPaidActive(sub)) line = `Подписка активна до ${sub.paid_until.slice(0, 10)}.`;
     else if (sub.paid_until) line = `Подписка истекла ${sub.paid_until.slice(0, 10)}.`;
     else line = "Сейчас у тебя бесплатный доступ.";
-    const rows = [];
-    if (env.STARS_PRICE_30) {
-      rows.push([{ text: `⭐ Оплатить 30 дней (${env.STARS_PRICE_30} Stars)`, callback_data: "pay" }]);
-    } else {
-      line += `\nДля оплаты и продления напиши: ${d.SUPPORT.replace(/^.*?:\s*/, "")}`;
-    }
+    const acc = sub.offer_accepted_at;
+    line += acc ? `\nУсловия приняты: ${acc.slice(0, 10)}` : "\nПеред оплатой нужно принять условия (оферту).";
+    const rows = [[{ text: "📄 Условия", callback_data: "of" }]];
+    if (!acc) rows.push([{ text: "✅ Принимаю условия", callback_data: "oa" }]);
+    else if (env.STARS_PRICE_30) rows.push([{ text: `⭐ Оплатить 30 дней (${env.STARS_PRICE_30} Stars)`, callback_data: "pay" }]);
+    else line += `\nДля оплаты и продления напиши: ${d.SUPPORT.replace(/^.*?:\s*/, "")}`;
     rows.push(BACK);
     await render(env, chatId, mid, line, rows);
+  }
+
+  function chunkText(t, lim = 3800) {
+    const out = [];
+    let cur = "";
+    for (const p of t.split("\n\n")) {
+      if (cur && (cur + "\n\n" + p).length > lim) { out.push(cur); cur = p; }
+      else cur = cur ? cur + "\n\n" + p : p;
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+
+  async function showOffer(env, chatId) {
+    const parts = chunkText(d.OFFER);
+    const sub = await d.getSub(env, chatId);
+    for (let i = 0; i < parts.length; i++) {
+      const params = { chat_id: chatId, text: parts[i] };
+      if (i === parts.length - 1) {
+        const rows = [];
+        if (!(sub && sub.offer_accepted_at)) rows.push([{ text: "✅ Принимаю условия", callback_data: "oa" }]);
+        rows.push(BACK);
+        params.reply_markup = { inline_keyboard: rows };
+      }
+      await d.tgApi(env, "sendMessage", params);
+    }
   }
 
   async function sendInvoice(env, chatId) {
@@ -210,7 +236,19 @@ export function createMenu(d) {
     } else if (cmd === "l") {
       await render(env, chatId, mid, "Популярные бренды (можно добавить и любой свой):\n\n" + groupAlphabet(d.ALL_BRANDS), [BACK]);
     } else if (cmd === "u") await subScreen(env, chatId, mid, sub);
-    else if (cmd === "pay") await sendInvoice(env, chatId);
+    else if (cmd === "of") await showOffer(env, chatId);
+    else if (cmd === "oa") {
+      if (!sub.offer_accepted_at) {
+        sub.offer_accepted_at = new Date().toISOString();
+        sub.offer_version = 1;
+        await d.setSub(env, chatId, sub);
+      }
+      toast = "Условия приняты";
+      await subScreen(env, chatId, null, sub);
+    } else if (cmd === "pay") {
+      if (!sub.offer_accepted_at) { toast = "Сначала прими условия"; await subScreen(env, chatId, mid, sub); }
+      else await sendInvoice(env, chatId);
+    }
     else if (cmd === "tg") {
       sub.active = !sub.active;
       await d.setSub(env, chatId, sub);
@@ -289,5 +327,5 @@ export function createMenu(d) {
     }
   }
 
-  return { showMenu, onCallback, onPendingText, onPayment, grant };
+  return { showMenu, onCallback, onPendingText, onPayment, grant, showOffer };
 }
